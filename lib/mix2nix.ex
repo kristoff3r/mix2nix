@@ -123,6 +123,48 @@ defmodule Mix2nix do
     sha256 = sha256 || get_hash(hex_name, version)
     deps = dep_string(allpkgs, deps)
 
+    postBuild =
+      case name do
+        "db_connection" ->
+          "genPltDBConnection"
+
+        _ ->
+          case buildEnv do
+            "buildMix" ->
+              "genPltMix"
+
+            "buildRebar3" ->
+              "genPltRebar"
+
+            "buildErlangMk" ->
+              "genPltRebar"
+
+            _ ->
+              raise "Could not generate postBuild for package=#{name} builder=#{buildEnv}"
+          end
+      end
+
+    postInstall =
+      case name do
+        "db_connection" ->
+          "installPltDBConnection"
+
+        _ ->
+          case buildEnv do
+            "buildMix" ->
+              "installPlt"
+
+            "buildRebar3" ->
+              "installPltRebar"
+
+            "buildErlangMk" ->
+              "installPltErlang"
+
+            _ ->
+              raise "Could not generate postInstall for package=#{name} builder=#{buildEnv}"
+          end
+      end
+
     """
         #{name} = #{buildEnv} rec {
           name = "#{name}";
@@ -134,15 +176,18 @@ defmodule Mix2nix do
             sha256 = "#{sha256}";
           };
 
+          postBuild = #{postBuild} name;
+          postInstall = #{postInstall} name version;
+
           beamDeps = #{deps};
-    """
-    <> hexpm_expression_extras(name)
-    <> "    };\n"
+    """ <>
+      hexpm_expression_extras(name) <>
+      "    };\n"
   end
 
   defp wrap(pkgs) do
     """
-    { lib, beamPackages, overrides ? (x: y: {}) }:
+    { lib, beamPackages, genPltDBConnection, installPltDBConnection, genPltMix, genPltRebar, installPlt, installPltRebar, installPltErlang, overrides ? (x: y: {}) }:
 
     let
       buildRebar3 = lib.makeOverridable beamPackages.buildRebar3;
